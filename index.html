@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treasure Hunt Portfolio</title>
+    <!-- Use Tailwind CSS for easy styling and responsiveness -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Replaced Gabriola with Playfair Display for the headline font -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for the treasure hunt theme */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d121c; /* Dark blue background fallback */
+            color: #d1c8b8; /* Light parchment-like text color */
+            display: flex;
+            justify-content: center;
+            /* Static background to cover the entire scrollable page */
+            background: linear-gradient(135deg, #0f4c75 0%, #1a5980 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 1400px;
+            position: relative;
+            /* Set a height that allows all absolute islands to fit */
+            height: 200vh; 
+            padding-top: 10rem; /* Add padding to the top to avoid content starting under the fixed header */
+            z-index: 10; /* Ensure this container is behind the header */
+        }
+        
+        .island-row {
+            display: flex;
+            justify-content: center;
+            position: absolute; /* Crucial for path calculations */
+        }
+
+        .island-icon {
+            cursor: pointer;
+            width: 8rem; /* Larger icon size */
+            height: 8rem; /* Larger icon size */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px; /* Make it a circle */
+            transition: transform 0.3s ease-in-out, filter 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            z-index: 10;
+            transform-origin: center center;
+            background-color: rgba(255, 255, 255, 0.1); /* Semi-transparent background for the islands */
+        }
+        .island-icon:hover {
+            transform: scale(1.1); /* Pop effect */
+            filter: drop-shadow(0 0 10px #fde68a); /* Glowing effect */
+            box-shadow: 0 0 20px rgba(253, 230, 138, 0.5); /* Another glowing effect */
+        }
+        .island-icon::after {
+            content: attr(data-label);
+            position: absolute;
+            bottom: -2.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #fde68a;
+            white-space: nowrap;
+        }
+        .island-icon img {
+            width: 70%;
+            height: 70%;
+            border-radius: 50%;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .modal-content {
+            background-color: #2d3748;
+            color: #d1c8b8;
+            padding: 2.5rem;
+            border-radius: 1rem;
+            max-width: 90%;
+            max-height: 90%;
+            overflow-y: auto;
+            position: relative;
+            transform: scale(0.9);
+            opacity: 0;
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+            opacity: 1;
+        }
+        .close-btn {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            font-size: 2rem;
+            cursor: pointer;
+            color: #fde68a; /* Changed to gold for visibility */
+            transition: transform 0.2s ease-in-out, color 0.2s ease-in-out;
+            z-index: 20; /* Ensure it's on top of modal content */
+        }
+        .close-btn:hover {
+            transform: rotate(90deg) scale(1.1);
+            color: #fff;
+        }
+        .typewriter-text {
+            animation: typing 2s steps(40, end), blink-caret .75s step-end infinite;
+            overflow: hidden;
+            border-right: .15em solid #fde68a;
+            white-space: nowrap;
+            display: inline-block;
+        }
+
+        /* Typewriter effect animation */
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 100% }
+        }
+
+        /* The typewriter cursor effect */
+        @keyframes blink-caret {
+            from, to { border-color: transparent }
+            50% { border-color: #fde68a; }
+        }
+        .loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #fde68a;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* New class for the newspaper headline font */
+        .newspaper-headline-font {
+            font-family: 'Playfair Display', serif;
+        }
+
+        #paths-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none; /* Allows clicks to pass through to the content below */
+        }
+        #paths-svg path {
+            stroke: #d1c8b8; /* Default path color */
+            transition: stroke 0.4s ease-in-out, filter 0.4s ease-in-out;
+        }
+        .path-active {
+            stroke: #FFD700; /* Gold color for active path */
+            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7));
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Container -->
+    <header class="fixed top-0 left-0 right-0 h-28 bg-[#0f4c75] z-40 flex items-center justify-center shadow-lg">
+        <!-- Main Title -->
+        <div class="text-center" style="max-width: calc(100vw - 22rem);">
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-[#fde68a] newspaper-headline-font whitespace-nowrap">
+                <span class="typewriter-text">Tandava Krishna Doddi</span>
+            </h1>
+        </div>
+        <!-- Compass on the rightmost corner -->
+        <div class="absolute top-1/2 -translate-y-1/2 right-8 w-24 h-24">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="#fde68a" stroke-width="2">
+                <!-- Compass Outer Circle -->
+                <circle cx="50" cy="50" r="48" stroke-width="3"/>
+                <circle cx="50" cy="50" r="42" stroke-width="1"/>
+                <!-- Compass Rose Lines -->
+                <path d="M50 10 L50 90"/>
+                <path d="M10 50 L90 50"/>
+                <path d="M22 22 L78 78"/>
+                <path d="M22 78 L78 22"/>
+                <!-- Compass Needle -->
+                <polygon points="50,15 55,50 50,45 45,50" fill="#e74c3c" stroke="none"/>
+                <polygon points="50,85 55,50 50,55 45,50" fill="#fde68a" stroke="none"/>
+                <circle cx="50" cy="50" r="5" fill="#d1c8b8" stroke="none"/>
+                <!-- Cardinal Directions -->
+                <text x="46" y="12" font-size="10" fill="#fde68a" stroke="none" font-family="serif">N</text>
+                <text x="46" y="94" font-size="10" fill="#fde68a" stroke="none" font-family="serif">S</text>
+                <text x="8" y="54" font-size="10" fill="#fde68a" stroke="none" font-family="serif">W</text>
+                <text x="82" y="54" font-size="10" fill="#fde68a" stroke="none" font-family="serif">E</text>
+            </svg>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <svg id="paths-svg"></svg>
+
+        <!-- About Me Island -->
+        <div id="about-island" class="island-row" style="top: 25vh; left: 20%;">
+            <div class="island-icon" data-label="About Me">
+                <img src="https://placehold.co/100x100/A0522D/ffffff?text=About" alt="About Me Icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/A0522D/ffffff?text=Fallback';">
+            </div>
+        </div>
+
+        <!-- Skills Island -->
+        <div id="skills-island" class="island-row" style="top: 45vh; right: 20%;">
+            <div class="island-icon" data-label="Skills">
+                <img src="https://placehold.co/100x100/2E8B57/ffffff?text=Skills" alt="Skills Icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/2E8B57/ffffff?text=Fallback';">
+            </div>
+        </div>
+
+        <!-- Certifications Island -->
+        <div id="certifications-island" class="island-row" style="top: 65vh; left: 20%;">
+            <div class="island-icon" data-label="Certifications">
+                <img src="https://placehold.co/100x100/3E5463/ffffff?text=Cert" alt="Certifications Icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/3E5463/ffffff?text=Fallback';">
+            </div>
+        </div>
+
+        <!-- Projects Island -->
+        <div id="projects-island" class="island-row" style="top: 85vh; right: 20%;">
+            <div class="island-icon" data-label="Projects">
+                <img src="https://placehold.co/100x100/8A2BE2/ffffff?text=Projects" alt="Projects Icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/8A2BE2/ffffff?text=Fallback';">
+            </div>
+        </div>
+
+        <!-- Experience Island -->
+        <div id="experience-island" class="island-row" style="top: 105vh; left: 20%;">
+            <div class="island-icon" data-label="Experience">
+                <img src="https://placehold.co/100x100/FF8C00/ffffff?text=Exp" alt="Experience Icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/FF8C00/ffffff?text=Fallback';">
+            </div>
+        </div>
+
+        <!-- Extracurricular Activities Island -->
+        <div id="extracurricular-island" class="island-row" style="top: 125vh; right: 20%;">
+            <div class="island-icon" data-label="Extracurriculars">
+                <img src="https://placehold.co/100x100/4CAF50/ffffff?text=Extra" alt="Extracurricular Icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/4CAF50/ffffff?text=Fallback';">
+            </div>
+        </div>
+
+        <!-- Blog Island -->
+        <div id="blog-island" class="island-row" style="top: 145vh; left: 20%;">
+            <div class="island-icon" data-label="Blog">
+                <img src="https://placehold.co/100x100/5E3B1C/ffffff?text=Blog" alt="Blog Icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/5E3B1C/ffffff?text=Fallback';">
+            </div>
+        </div>
+        
+        <!-- Contact Island -->
+        <div id="contact-island" class="island-row" style="top: 165vh; right: 20%;">
+            <div class="island-icon" data-label="Contact">
+                <img src="https://placehold.co/100x100/4A90E2/ffffff?text=Contact" alt="Contact Icon" onerror="this.onerror=null;this.src='https://placehold.co/100x100/4A90E2/ffffff?text=Fallback';">
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div id="modal-content" class="modal-content">
+            <span id="close-btn" class="close-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8">
+                    <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z" clip-rule="evenodd" />
+                </svg>
+            </span>
+            <div id="modal-body">
+                <!-- Content will be injected here by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const islands = document.querySelectorAll('.island-icon');
+        const sections = Array.from(document.querySelectorAll('.island-row'));
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalBody = document.getElementById('modal-body');
+        const closeBtn = document.getElementById('close-btn');
+        const pathsSvg = document.getElementById('paths-svg');
+        const mainContainer = document.querySelector('.main-container');
+
+        // Define content for each section
+        const content = {
+            'about-island': `
+                <h2 class="text-3xl font-bold mb-4 text-[#fde68a]">About Me</h2>
+                <p class="text-lg">
+                    Detail-oriented and proactive Computer Science graduate student with hands-on experience in software development and academic tutoring. Possesses strong knowledge of programming, cloud technologies, and data analysis. Currently pursuing a Data Analyst certification on Udemy to enhance skills in data interpretation and decision-making. Passionate about consulting and solving real-world business problems with innovative technical solutions.
+                </p>
+            `,
+            'skills-island': `
+                <h2 class="text-3xl font-bold mb-4 text-[#fde68a]">Skills & Tools</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">Programming</h3>
+                        <ul class="list-disc list-inside mt-2">
+                            <li>Java, Python, C, SQL</li>
+                            <li>JavaScript, HTML, CSS</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">Databases & BI Tools</h3>
+                        <ul class="list-disc list-inside mt-2">
+                            <li>MySQL, DBMS</li>
+                            <li>Power BI, Tableau</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">Frameworks & Developer Tools</h3>
+                        <ul class="list-disc list-inside mt-2">
+                            <li>JDBC, Servlets, JSP</li>
+                            <li>Git, IntelliJ, Eclipse, VS Code</li>
+                        </ul>
+                    </div>
+                     <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">Cloud & Concepts</h3>
+                        <ul class="list-disc list-inside mt-2">
+                             <li>AWS (EC2, S3, Lambda), Azure AI</li>
+                            <li>OOP, DSA, REST APIs, MVC Architecture</li>
+                        </ul>
+                    </div>
+                </div>
+            `,
+            'certifications-island': `
+                <h2 class="text-3xl font-bold mb-4 text-[#fde68a]">Certifications</h2>
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">SalesForce</h3>
+                        <p class="mb-2">Issued Sep 2022</p>
+                        <a href="https://smartinternz.com/internships/salesforce_certificates/7ef6c2494e3925e414c7730d6455b50f" target="_blank" class="text-[#fde68a] hover:underline">View Certificate</a>
+                    </div>
+                    <hr class="border-[#d1c8b8] my-4">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">Microsoft Certified: Azure AI Fundamentals</h3>
+                        <p class="mb-2">Issued Sep 2022</p>
+                        <a href="https://www.credly.com/badges/71c252d8-9847-4d29-9804-3eb1807094bb/public_url" target="_blank" class="text-[#fde68a] hover:underline">View Certificate</a>
+                    </div>
+                    <hr class="border-[#d1c8b8] my-4">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">AWS Academy Graduate: Cloud Foundations</h3>
+                        <p class="mb-2">Issued Apr 2022</p>
+                        <a href="https://www.credly.com/badges/82928238-8df2-455b-bb71-7b1ce6fb143b/public_url" target="_blank" class="text-[#fde68a] hover:underline">View Certificate</a>
+                    </div>
+                     <hr class="border-[#d1c8b8] my-4">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">Data Analyst</h3>
+                        <p class="mb-2">Ongoing on Udemy</p>
+                        <a href="#" target="_blank" class="text-[#fde68a] hover:underline">View Progress</a>
+                    </div>
+                </div>
+            `,
+            'projects-island': `
+                <h2 class="text-3xl font-bold mb-4 text-[#fde68a]">Projects & Publications</h2>
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">Digital Voting System using Block Chain Technology</h3>
+                        <p class="mb-2">Published a research paper in IJIEMR on a digital voting system using Block Chain Technology. Implemented smart contracts for secure vote automation and enhanced voter privacy using cryptographic techniques.</p>
+                        <a href="https://doi.org/10.48047/IJIEMR/V12/ISSUE%2004/38" target="_blank" class="text-[#fde68a] hover:underline">View Publication</a>
+                    </div>
+                    <hr class="border-[#d1c8b8] my-4">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">Obstacle Avoidance Vehicle using Ultrasonic Sensor</h3>
+                        <p class="mb-2">Designed and built an autonomous robot that uses ultrasonic sensors to detect and navigate around obstacles, a concept widely used in industrial automation.</p>
+                    </div>
+                </div>
+            `,
+            'experience-island': `
+                <h2 class="text-3xl font-bold mb-4 text-[#fde68a]">Work Experience</h2>
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-white mb-2">AWS Cloud Virtual Internship – EduSkills/AWS Academy</h3>
+                        <p class="text-lg">March 2022 - May 2022</p>
+                        <ul class="list-disc list-inside mt-2">
+                            <li>Configured EC2 instances and VPCs for cloud deployment.</li>
+                            <li>Implemented serverless logic using AWS Lambda.</li>
+                            <li>Built foundational cloud architecture for scalable solutions.</li>
+                        </ul>
+                    </div>
+                </div>
+            `,
+            'extracurricular-island': `
+                <h2 class="text-3xl font-bold mb-4 text-[#fde68a]">Hobbies</h2>
+                <div class="space-y-6">
+                   <ul class="list-disc list-inside mt-2 grid grid-cols-2 gap-4">
+                        <li>Sudoku</li>
+                        <li>Meditation</li>
+                        <li>Cycling</li>
+                        <li>Cooking</li>
+                    </ul>
+                </div>
+            `,
+            'blog-island': `
+                <h2 class="text-3xl font-bold mb-4 text-[#fde68a]">Blog</h2>
+                <p class="text-lg">
+                    This is where my thoughts and articles on technology will live. Stay tuned for future posts!
+                </p>
+            `,
+            'contact-island': `
+                <h2 class="text-3xl font-bold mb-4 text-[#fde68a]">Contact Me</h2>
+                <p class="text-lg mb-4">Ready to embark on a new adventure together? Send a message in a bottle!</p>
+                <ul class="space-y-4">
+                    <li><a href="tel:+12035897608" class="flex items-center text-white hover:text-[#fde68a]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+                        +1 (203) 589-7608</a>
+                    </li>
+                    <li><a href="mailto:tdoddi@rivier.edu" class="flex items-center text-white hover:text-[#fde68a]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.103 0-2 .897-2 2v12c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V6c0-1.103-.897-2-2-2zm0 2v.511l-8 4.511-8-4.511V6h16zM4 18V8.019l8 4.511 8-4.511V18H4z"/></svg>
+                        tdoddi@rivier.edu</a>
+                    </li>
+                    <li><a href="https://linkedin.com/in/tandava-krishna-doddi" target="_blank" class="flex items-center text-white hover:text-[#fde68a]">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0H5c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5V5c0-2.761-2.238-5-5-5zm-5.405 15.404h-2.529V9.298h2.529v6.106zm-1.265-7.469c-.836 0-1.488-.679-1.488-1.503 0-.827.652-1.503 1.488-1.503.836 0 1.503.676 1.488 1.503 0 .824-.652 1.503-1.488 1.503zm8.384 7.469h-2.53v-3.791c0-.905-.017-2.073-1.261-2.073-1.261 0-1.455.986-1.455 1.996v3.868h-2.529V9.298h2.428v1.117h.034c.337-.64 1.154-1.261 2.387-1.261 2.548 0 3.013 1.671 3.013 3.84v4.39z"/></svg>
+                        LinkedIn Profile</a>
+                    </li>
+                </ul>
+            `
+        };
+
+        islands.forEach(island => {
+            island.addEventListener('click', () => {
+                const islandId = island.closest('.island-row').id;
+                modalBody.innerHTML = `<div class="loading-spinner mx-auto"></div>`; // Show spinner
+                closeBtn.style.display = 'none'; // Hide close button during loading
+                modalOverlay.classList.add('active');
+                setTimeout(() => {
+                    modalBody.innerHTML = content[islandId] || '<p>Content not found.</p>';
+                    closeBtn.style.display = 'block'; // Show close button after content loads
+                }, 300); // Simulate loading
+            });
+        });
+
+        const closeModal = () => modalOverlay.classList.remove('active');
+        closeBtn.addEventListener('click', closeModal);
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) closeModal();
+        });
+
+        // --- Path Drawing Logic ---
+
+        const getCenter = (element) => {
+            const row = element.closest('.island-row');
+            return {
+                x: row.offsetLeft + (row.offsetWidth / 2),
+                y: row.offsetTop + (row.offsetHeight / 2)
+            };
+        };
+
+        const drawPaths = () => {
+            pathsSvg.innerHTML = ''; // Clear existing paths
+            pathsSvg.setAttribute('viewBox', `0 0 ${mainContainer.scrollWidth} ${mainContainer.scrollHeight}`);
+
+            const connections = [
+                ['about-island', 'skills-island'],
+                ['skills-island', 'certifications-island'],
+                ['certifications-island', 'projects-island'],
+                ['projects-island', 'experience-island'],
+                ['experience-island', 'extracurricular-island'],
+                ['extracurricular-island', 'blog-island'],
+                ['blog-island', 'contact-island']
+            ];
+
+            connections.forEach(([startId, endId]) => {
+                const startElement = document.getElementById(startId)?.querySelector('.island-icon');
+                const endElement = document.getElementById(endId)?.querySelector('.island-icon');
+
+                if (startElement && endElement) {
+                    const startPos = getCenter(startElement);
+                    const endPos = getCenter(endElement);
+                    
+                    const dx = endPos.x - startPos.x;
+                    const dy = endPos.y - startPos.y;
+
+                    const controlPoint1 = { x: startPos.x + dx * 0.25, y: startPos.y + dy * 0.75 };
+                    const controlPoint2 = { x: startPos.x + dx * 0.75, y: startPos.y + dy * 0.25 };
+                    
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", 'path');
+                    path.setAttribute('d', `M${startPos.x} ${startPos.y} C${controlPoint1.x} ${controlPoint1.y}, ${controlPoint2.x} ${controlPoint2.y}, ${endPos.x} ${endPos.y}`);
+                    path.setAttribute('stroke-width', '3');
+                    path.setAttribute('stroke-dasharray', '8, 8');
+                    path.setAttribute('stroke-linecap', 'round');
+                    path.setAttribute('fill', 'transparent');
+                    pathsSvg.appendChild(path);
+                }
+            });
+            updateActivePath();
+        };
+
+        const updateActivePath = () => {
+            const scrollCenter = (window.innerHeight / 2) + window.scrollY;
+            const paths = pathsSvg.querySelectorAll('path');
+            let activeIndex = -1;
+
+            sections.forEach((section, index) => {
+                if (section.offsetTop < scrollCenter) {
+                    activeIndex = index;
+                }
+            });
+
+            paths.forEach((path, index) => {
+                if (index < activeIndex) {
+                    path.classList.add('path-active');
+                } else {
+                    path.classList.remove('path-active');
+                }
+            });
+        };
+
+        // Use a short timeout to ensure all elements are rendered before drawing paths
+        setTimeout(() => {
+            drawPaths();
+            updateActivePath();
+        }, 100);
+
+        window.addEventListener('resize', drawPaths);
+        window.addEventListener('scroll', updateActivePath);
+    });
+</script>
+</body>
+</html>
